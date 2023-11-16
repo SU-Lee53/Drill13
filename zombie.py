@@ -122,6 +122,15 @@ class Zombie:
         else:
             return BehaviorTree.RUNNING
 
+    def runaway_from_boy(self, r=7):
+        # 도망갈 위치 -> 소년의 위치를 좀비의 위치로 점대칭
+        self.state = 'Walk'
+        self.move_slightly_to(2 * self.x - play_mode.boy.x, 2 * self.y - play_mode.boy.y)
+        if self.distance_less_than(play_mode.boy.x, play_mode.boy.y, self.x, self.y, r):
+            return BehaviorTree.SUCCESS
+        else:
+            return BehaviorTree.RUNNING
+
     def get_patrol_location(self):
         self.tx, self.ty = self.patrol_locations[self.loc_no]
         self.loc_no = (self.loc_no + 1) % len(self.patrol_locations)
@@ -129,10 +138,12 @@ class Zombie:
         pass
 
     def ballcount_more_than(self):
-        return self.ball_count >= play_mode.boy.ball_count
+        if self.ball_count >= play_mode.boy.ball_count: return BehaviorTree.SUCCESS
+        else: return BehaviorTree.FAIL
 
-    def ballcount_less_tham(self):
-        return self.ball_count < play_mode.boy.ball_count
+    def ballcount_less_than(self):
+        if self.ball_count < play_mode.boy.ball_count: return BehaviorTree.SUCCESS
+        else: return BehaviorTree.FAIL
 
     def build_behavior_tree(self):
         a1 = Action('Set target location', self.set_target_location, 500, 50)   # action node 생성
@@ -145,16 +156,23 @@ class Zombie:
         SEQ_wander = Sequence('Wander', a3, a2)
 
         c1 = Condition('Is boy nearby?', self.is_boy_nearby, 7)
+        c2 = Condition('Has more ball than boy?', self.ballcount_more_than)
         a4 = Action('Move to boy', self.move_to_boy)
 
-        SEQ_chase_boy = Sequence('Follow boy', c1, a4)
+        SEQ_chase_boy = Sequence('Follow boy', c1, c2, a4)
 
-        root = SEL_chase_or_wander = Selector('Follow or Wander', SEQ_chase_boy, SEQ_wander)
+        SEL_chase_or_wander = Selector('Follow or ander', SEQ_chase_boy, SEQ_wander)
 
         a5 = Action('Get patrol location', self.get_patrol_location)
 
         SEQ_patrol = Sequence('Patrol', a5, a2)
 
+        c3 = Condition('Has less ball than boy?', self.ballcount_less_than)
+        a6 = Action('Runaway from boy', self.runaway_from_boy)
+
+        SEQ_runaway_from_boy = Sequence('Runaway from boy', c1, c3, a6)
+
+        root = SEL_chase_or_runaway_or_wander = Selector('Chase or Runaway or Wander', SEQ_chase_boy, SEQ_runaway_from_boy, SEQ_wander)
+
         self.bt = BehaviorTree(root)
 
-        pass
